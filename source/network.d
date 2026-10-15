@@ -932,8 +932,9 @@ struct Joiner{
 		if(useZerotier) return tryJoinZerotier(hostIP, port);
 		auto hostAddress = new InternetAddress(hostIP, port);
 		if(!joinSocket) joinSocket=new Socket(AddressFamily.INET,SocketType.STREAM);
+		joinSocket.setOption(SocketOptionLevel.SOCKET,SocketOption.SNDTIMEO,10.seconds); // Linux applies it to connect
 		try joinSocket.connect(hostAddress);
-		catch(Exception){ return null; }
+		catch(Exception){ joinSocket=null; return null; } // a failed socket cannot connect again
 		joinSocket.blocking=false;
 		joinSocket.setKeepAlive(5,1);
 		auto connection=new TCPConnection(joinSocket);
