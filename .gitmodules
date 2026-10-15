@@ -1,6 +1,6 @@
 [submodule "dagon"]
 	path = dagon
-	url = ../dagon
+	url = https://github.com/tg-2/dagon
 [submodule "dlib"]
 	path = dlib
-	url = ../dlib
+	url = https://github.com/tg-2/dlib
