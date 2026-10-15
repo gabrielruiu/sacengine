@@ -534,7 +534,7 @@ final class SacScene: Scene{
 					else forms[formIndex].elements[5].checked=chatOptions.checked[$-1]=all(chatOptions.checked[0..$-1]);
 				}
 				break;
-			default: break;
+			default: import coop.frontend; coop.frontend.onFormElement!DagonBackend(formIndex,elementIndex); break;
 		}
 	}
 

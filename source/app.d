@@ -425,7 +425,7 @@ int finalizeSettings(ref Options options){
 		options.spellbook=randomSpells();
 	}else options.spellbook=defaultSpells[options.god];
 
-	if(options.map==""&&!options.noMap&&options.joinIP==""){
+	if(options.map==""&&!options.noMap&&!options.menu&&options.joinIP==""){
 		import std.file:dirEntries,SpanMode;
 		if(auto r=pickMap(dirEntries("maps","*.scp",SpanMode.depth).map!(x=>cast(string)x).array,options))
 			return r;
@@ -588,7 +588,11 @@ int run(string[] args){
 		import zerotier;
 		connectToZerotier(options.zerotierIdentity,options.zerotierNetwork);
 	}
-	if(!options.noMap||options.host||options.joinIP!=""){
+	if(options.menu){ // coop front end; it overrides --host/--join
+		if(options.host||options.joinIP!="") stderr.writeln("warning: --menu ignores --host and --join");
+		options.host=false; options.joinIP="";
+		import coop.frontend; coop.frontend.start!B(options);
+	}else if(!options.noMap||options.host||options.joinIP!=""){
 		// loadGame!B(options);
 		auto lobby=makeLobby!B(options);
 		B.addLogicCallback(()=>!updateLobby(lobby,options));
