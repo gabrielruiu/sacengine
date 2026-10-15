@@ -198,7 +198,7 @@ final class SacScene: Scene{
 			}
 		}
 		super.renderOpaqueEntities3D(rc);
-		if(!state) return;
+		if(!state){ import coop.preview; coop.preview.render3D!DagonBackend(rc); return; }
 		typeof(renderer).R3DOpt r3dopt={enableWidgets: options.enableWidgets};
 		renderer.renderOpaqueEntities3D(r3dopt,state.current,info,rc);
 	}

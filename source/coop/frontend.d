@@ -16,7 +16,7 @@ import coop.lobbymodel;
 
 enum Screen{ title, singlePlayer, tcpip, connecting, lobby, characterEditor }
 
-private template FE(B){
+package template FE(B){
 	Screen screen;
 	Options options;
 	Network!B network;
@@ -96,8 +96,6 @@ void showScreen(B)(Screen screen){
 		case characterEditor:
 			setEntry!B(find!B("manp"),FE!B.draftName);
 			current!B.elements[find!B("bpse")].visible=false;
-			// shortcut: wizard model shown as text, not a 3D preview; upgrade when a later milestone adds render-to-texture for canvases
-			showWizard!B();
 			break;
 	}
 }
@@ -118,6 +116,7 @@ bool tick(B)(){
 	}
 	if(fe.screen.among(Screen.lobby,Screen.characterEditor)) logLobby!B();
 	if(fe.screen==Screen.lobby) fillLobby!B();
+	if(fe.screen==Screen.characterEditor) showWizard!B(); // every frame: a load failure is only seen while rendering
 	return true;
 }
 
@@ -180,7 +179,6 @@ void handle(B)(char[4] id){
 		case characterEditor:
 			if(id=="-ziw"||id=="+ziw"){
 				fe.draftWizard=(fe.draftWizard+(id=="+ziw"?1:wizards.length-1))%wizards.length;
-				showWizard!B();
 			}else if(id=="_KO_"){
 				auto me=fe.network.me;
 				auto name=sanitizeName(current!B.elements[find!B("manp")].textInput.data.idup,fe.network.players[me].settings.name);
@@ -332,7 +330,9 @@ string wizardName(char[4] tag){
 
 void showWizard(B)(){
 	auto i=find!B("ziws");
-	setText!B(i,wizardName(cast(char[4])wizards[FE!B.draftWizard]));
+	import coop.preview: failed;
+	auto tag=cast(char[4])wizards[FE!B.draftWizard];
+	setText!B(i,tag in failed?wizardName(tag):""); // the 3D preview fills the canvas unless the model failed to load
 	auto e=&sacElement!B(i);
 	if(e.texts.length) e.texts[0].position.y=e.offset.y+0.5f*e.size.y-8;
 }

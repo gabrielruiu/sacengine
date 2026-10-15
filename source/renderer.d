@@ -5559,6 +5559,7 @@ struct Renderer(B){
 				foreach(i,ref part;sacElement.parts){
 					B.colorHUDMaterialBackend.bindDiffuse(part.texture);
 					if(i==0&&sacElement.type==ElementType.canvas){
+						{ import coop.preview; if(coop.preview.drawCanvas!B(sacElement.id,Vector2f(offset.x,offset.y)+scaledOffset,scaledSize,info)) continue; }
 						B.colorHUDMaterialBackend.setColor(Color4f(0.0f,0.0f,0.0f,1.0f));
 						part.mesh[active].render(rc); // TODO: actually get correct canvas contents
 						B.colorHUDMaterialBackend.setColor(Color4f(1.0f,1.0f,1.0f,1.0f));
