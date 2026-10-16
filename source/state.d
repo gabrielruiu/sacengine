@@ -9094,6 +9094,7 @@ void recordGib(B)(ref MovingObject!B object,int attackingSide,ObjectState!B stat
 }
 
 float dealRawDamage(B)(ref MovingObject!B object,float damage,int attackingSide,DamageMod damageMod,ref bool killed,ObjectState!B state){
+	{ import coop.script; coop.script.recordAttack(attackingSide,object.id,state); } // coop: "is attacked" conditions
 	float actualDamage;
 	if(!(damageMod&DamageMod.fall)||object.isSacDoctor){ // TODO: do sac doctors take fall damage at all?
 		if(!object.canDamage(state)){ object.unfreeze(state); return 0.0f; }
@@ -30855,6 +30856,7 @@ void triggerText(B)(scope void delegate(scope const(char)[]) sink,ref TriggerSta
 
 void endTriggers(B)(ref TriggerState!B triggerState,ObjectState!B state){
 	checkWinConditions(triggerState,state);
+	{ import coop.script; coop.script.step(state); }
 }
 
 enum TargetType{
