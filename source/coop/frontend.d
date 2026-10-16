@@ -13,6 +13,8 @@ import sacfont: SacFont, FormatSettings, getSize;
 import nttData: forms, formTexts, mouseoverTexts, texts, randomWizardName, wizards;
 import network: Network, isConnectedStatus;
 import coop.lobbymodel;
+import coop.missionmodel: nextGod;
+import coop.mission: hostGod;
 
 enum Screen{ title, singlePlayer, tcpip, connecting, lobby, characterEditor }
 
@@ -47,7 +49,7 @@ void onFormElement(B)(int formIndex,int elementIndex){
 	FE!B.pressed=elementIndex; // act in tick, outside menuControl's use of the form
 }
 
-private:
+package: // coop.mission uses the screen and element helpers
 
 // 1ply gets "Coop Campaign" between the six entries and Cancel. In memory only; nothing is written to disk.
 void patchSinglePlayerForm(){
@@ -103,6 +105,8 @@ void showScreen(B)(Screen screen){
 bool tick(B)(){
 	alias fe=FE!B;
 	fe.frame++;
+	import coop.mission;
+	if(coop.mission.tick!B()){ pollControl!B(); return true; } // loading or in game
 	if(fe.network) fe.network.update(null);
 	if(fe.screen==Screen.connecting&&fe.frame>=fe.joinFrame) join!B();
 	if(fe.network&&fe.network.isHost) hostPolicy!B();
@@ -131,6 +135,7 @@ void pollControl(B)(){
 	for(;fe.controlDone<lines.length&&fe.pressed==-1;fe.controlDone++){ // one press per poll
 		auto words=lines[fe.controlDone].split;
 		if(words.length<2) continue;
+		if(!B.scene.forms.length){ import coop.mission; coop.mission.control!B(words); continue; } // in game
 		auto id=words[1].split('#');
 		auto all=current!B.elements.data.indexes(id[0]);
 		auto n=id.length>1?id[1].to!size_t-1:0;
@@ -168,7 +173,8 @@ void handle(B)(char[4] id){
 			if(id=="lcnc"){ leave!B(); showScreen!B(singlePlayer); }
 			else if(me==-1) break;
 			else if(id=="tesg") fe.network.updateSetting!"ready"(!fe.network.players[me].settings.ready);
-			else if(id=="trts"){} // stub: Milestone 4 starts the mission here
+			else if(id=="trts"){ import coop.mission; coop.mission.start!B(); }
+			else if(id=="_dog"&&fe.network.isHost) fe.network.updateSetting!"coopGod"(nextGod(hostGod(fe.network)));
 			else if(id=="eman"){
 				fe.draftName=fe.network.players[me].settings.name;
 				fe.draftWizard=cast(size_t)max(0,wizards.countUntil(fe.network.players[me].settings.wizard));
@@ -286,12 +292,13 @@ void fillLobby(B)(){
 				// the row pictures render at the screen's corner in sacengine, so ready is part of the name label
 				case "munp","epyt","maet","yder": elements[i].visible=false; break;
 				case "eman":
-					setText!B(i,settings.ready?settings.name~" \u2013 Ready":settings.name,false);
+					auto label=settings.name~" \u2013 "~wizardName(settings.wizard);
+					setText!B(i,settings.ready?label~" \u2013 Ready":label,false);
 					elements[i].enabled=player==me;
 					break;
-				case "_dog":
-					setText!B(i,wizardName(settings.wizard),false);
-					elements[i].enabled=false;
+				case "_dog": // the mission: the host's god, chosen on the host's own row
+					setText!B(i,godName(hostGod(network)),false);
+					elements[i].enabled=network.isHost&&player==me;
 					break;
 				default: break;
 			}
@@ -315,12 +322,24 @@ void logLobby(B)(){
 	auto players=iota(network.players.length).filter!(i=>isConnectedStatus(network.players[i].status)&&network.players[i].slot!=-1)
 		.array.sort!((i,j)=>network.players[i].slot<network.players[j].slot)
 		.map!(i=>format!"%s:%s:%s:%d"(network.players[i].slot,network.players[i].settings.name,wizardName(network.players[i].settings.wizard),network.players[i].settings.ready));
-	auto line=format!"coop: me=%s players=[%-(%s,%)]"(network.me,players);
+	import coop.missionmodel: missionBase;
+	auto line=format!"coop: me=%s players=[%-(%s,%)] mission=%s"(network.me,players,missionBase(hostGod(network)));
 	if(network.isHost) line~=canStart(readyFlags(network))?" start=enabled":" start=disabled";
 	if(line==FE!B.lastLog) return;
 	FE!B.lastLog=line;
 	stdout.writeln(line);
 	stdout.flush();
+}
+
+string godName(int god){ return ["Persephone","Pyro","James","Stratos","Charnel"][god-1]; }
+
+// Back to the TCP/IP screen, disconnected, with the reason in its title line.
+void refuse(B)(string reason){
+	FE!B.status=reason;
+	stdout.writeln("coop: refused: ",reason);
+	stdout.flush();
+	leave!B();
+	showScreen!B(Screen.tcpip);
 }
 
 string wizardName(char[4] tag){
