@@ -15051,6 +15051,7 @@ void updateSoul(B)(ref Soul!B soul, ObjectState!B state){
 				auto sidePositionValid=state.movingObjectReadById!((ref objects,i)=>tuple(objects.sides[i],objects.center(i),objects.canCollectSouls(i)),()=>Tuple!(int,Vector3f,bool).init)(wizard.id);
 				auto side=sidePositionValid[0],position=sidePositionValid[1],valid=sidePositionValid[2];
 				if(!valid) return;
+				{ import coop.wizards; if(coop.wizards.isCoopSide(side,state)) return; }
 				if((soul.position.xy-position.xy).lengthsqr>collectDistance^^2) return;
 				if(abs(soul.position.z-position.z)>collectDistance) return;
 				auto distancesqr=(soul.position-position).lengthsqr;
@@ -29261,6 +29262,7 @@ final class ObjectState(B){ // (update logic)
 	}
 	void applyCommand(Command!B command){
 		if(!command.isApplicable(this)) return;
+		{ import coop.wizards; if(!coop.wizards.allowCommand(command,this)) return; }
 		bool success=true;
 		scope(success) if(success){
 			int whichClick=uniform(2);
@@ -30660,7 +30662,7 @@ final class Triggers(B){
 struct TriggerState(B){
 	int[32] numSouls;
 	int[32] numManaliths;
-	import coop.wizards: CoopState; import coop.script: ScriptState; CoopState coop; ScriptState script; // coop: synced co-op state
+	import coop.missionmodel: CoopState, ScriptState; CoopState coop; ScriptState script; // coop: synced co-op state
 }
 
 void beginTriggers(B)(ref TriggerState!B triggerState,ObjectState!B state){
