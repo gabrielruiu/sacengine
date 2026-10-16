@@ -89,6 +89,11 @@ bool allowCommand(B)(ref Command!B command,ObjectState!B state){
 	return false;
 }
 
+// The host may add a surrender for a co-op side (controller.addCommand): its player dropped (coop.mission).
+bool hostRemovesCoopWizard(B,N)(ref Command!B command,N network,ObjectState!B state){
+	return network&&network.isHost&&command.type==CommandType.surrender&&isCoopSide(command.side,state);
+}
+
 // The player left: the wizard disappears, or is never placed. No lose/killAll: co-op sides cannot lose (FR-026).
 void remove(B)(ref CoopState coop,ref CoopWizard w,ObjectState!B state){
 	if(w.state==CoopWizardState.gone) return;

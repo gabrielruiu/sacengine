@@ -22,6 +22,7 @@ package template M(B){
 	Lobby!B lobby;
 	Options options;
 	string mission; // base name, e.g. "ja01"
+	bool[] left; // host, in game: players whose co-op wizard was already removed
 }
 
 // The host's mission choice as every client sees it (default James).
@@ -63,6 +64,7 @@ bool tick(B)(){
 			stdout.flush();
 			return true;
 		case Phase.playing:
+			if(network.isHost) removeLeavers!B();
 			return true;
 	}
 }
@@ -125,6 +127,22 @@ void dropLeavers(B)(){
 	}
 }
 
+// Host, in game: a co-op player who dropped gets one surrender for their side, which removes their wizard
+// (or keeps it from spawning) on every peer (research R9).
+void removeLeavers(B)(){
+	import state: Command;
+	alias m=M!B;
+	auto network=FE!B.network;
+	m.left.length=network.players.length;
+	foreach(i,ref p;network.players.data){
+		if(i==network.host||m.left[i]||isConnectedStatus(p.status)||p.slot<1||p.slot>maxCoopPlayers) continue;
+		m.left[i]=true;
+		B.controller.addCommand(Command!B(coopSide(p.slot)));
+		stdout.writefln!"coop: %s left, removing side %d"(p.settings.name,coopSide(p.slot));
+		stdout.flush();
+	}
+}
+
 package:
 
 // In-game COOP_CONTROL lines (contracts/ui-and-test.md), see coop.frontend.pollControl.
@@ -146,7 +164,42 @@ void control(B)(string[] words){
 			auto facing=gs.current.movingObjectById!((ref obj)=>obj.creatureState.facing,()=>0.0f)(wizard);
 			foreach(t;*ts) controller.addCommand(Command!B(t,side,wizard,wizard,Target.init,facing));
 			return;
+		case "cmd": // any command for the local side, as a modified client could send it (US4 scenario 5)
+			auto c=testCommand!B(words[1],side,wizard,gs);
+			if(c.type==CommandType.none){ stderr.writeln("coop: control: cannot build ",words[1]); return; }
+			controller.addCommand(c);
+			return;
 		default:
 			stderr.writeln("coop: control: unknown in-game line: ",words.join(" "));
 	}
+}
+
+// A command of the named CommandType for side/wizard, aimed at the host's wizard; type none if it cannot be built.
+auto testCommand(B,G)(string name,int side,int wizard,G gs){
+	import state: Command, CommandType, Target, TargetType, Formation, movingObjectById, defaultSpells;
+	import sacspell: SacSpell;
+	import dlib.math: Vector3f;
+	Command!B c;
+	CommandType type;
+	try type=name.to!CommandType; catch(Exception) return c;
+	auto host=gs.slots.length?gs.slots[0].wizard:0;
+	auto position=gs.current.movingObjectById!((ref obj)=>obj.position,()=>Vector3f(0.0f,0.0f,0.0f))(host);
+	auto creature=Target(TargetType.creature,host,position), terrain=Target(TargetType.terrain,0,position);
+	auto spell=SacSpell!B.get(defaultSpells[God.james][0].tag);
+	final switch(type) with(CommandType){
+		case none,chatMessage: break;
+		case moveForward,moveBackward,stopMoving,turnLeft,turnRight,stopTurning,select,selectAll,automaticSelectAll,
+			toggleSelection,automaticToggleSelection,addAllToSelection,automaticAddAllToSelection:
+			if(host) c=Command!B(type,side,wizard,type<=stopTurning?wizard:host,Target.init,0.0f); break;
+		case clearSelection: c=Command!B(type,side,wizard,0,Target.init,0.0f); break;
+		case defineGroup,addToGroup,selectGroup,automaticSelectGroup: c=Command!B(type,side,wizard,1); break;
+		case setFormation: c=Command!B(side,wizard,Formation.line); break;
+		case move,guardArea,advance: c=Command!B(type,side,wizard,0,terrain,0.0f); break;
+		case retreat,capture,guard,attack: if(host) c=Command!B(type,side,wizard,0,creature,0.0f); break;
+		case castSpell: if(host) c=Command!B(side,wizard,spell,creature); break;
+		case useAbility: if(host) c=Command!B(side,spell,creature); break;
+		case dropSoul: c=Command!B(side,wizard); break;
+		case surrender: c=Command!B(side); break;
+	}
+	return c;
 }
