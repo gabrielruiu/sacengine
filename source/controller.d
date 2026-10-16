@@ -143,7 +143,8 @@ final class Controller(B){
 			}
 			return;
 		}
-		if(!isControllingSide(command.side)){
+		import coop.wizards: hostRemovesCoopWizard; // coop: the host surrenders for a co-op player who dropped
+		if(!isControllingSide(command.side)&&!hostRemovesCoopWizard(command,network,state.current)){
 			bool observerChat=command.side==-1&&command.type==CommandType.chatMessage;
 			if(!observerChat) return;
 			if(network&&!network.isHost){
