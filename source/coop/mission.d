@@ -129,5 +129,24 @@ package:
 
 // In-game COOP_CONTROL lines (contracts/ui-and-test.md), see coop.frontend.pollControl.
 void control(B)(string[] words){
-	stderr.writeln("coop: control: unknown in-game line: ",words.join(" "));
+	import state: Command, CommandType, Target, movingObjectById;
+	auto controller=B.controller, gs=B.state;
+	if(!controller||controller.controlledSlot==-1) return;
+	auto side=controller.controlledSide, wizard=gs.slots[controller.controlledSlot].wizard;
+	switch(words[0]){
+		case "move": // the commands the movement keys send, for the local wizard
+			if(!wizard){ stderr.writeln("coop: control: no wizard to move"); return; }
+			static immutable CommandType[][string] types=[
+				"forward":[CommandType.moveForward],"backward":[CommandType.moveBackward],
+				"left":[CommandType.turnLeft],"right":[CommandType.turnRight],
+				"stop":[CommandType.stopMoving,CommandType.stopTurning],
+			];
+			auto ts=words[1] in types;
+			if(!ts){ stderr.writeln("coop: control: bad move ",words[1]); return; }
+			auto facing=gs.current.movingObjectById!((ref obj)=>obj.creatureState.facing,()=>0.0f)(wizard);
+			foreach(t;*ts) controller.addCommand(Command!B(t,side,wizard,wizard,Target.init,facing));
+			return;
+		default:
+			stderr.writeln("coop: control: unknown in-game line: ",words.join(" "));
+	}
 }
