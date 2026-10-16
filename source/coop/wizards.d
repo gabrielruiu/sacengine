@@ -54,6 +54,7 @@ void prepare(B)(ObjectState!B state,ref GameInit!B gi){
 void init(B)(ObjectState!B state,ref GameInit!B gi){
 	auto coop=&state.trig.coop;
 	*coop=CoopState.init;
+	focused=0; // a new game in the same process
 	coop.coopSides=gi.coopSides;
 	coop.hostSide=gi.wizards[gi.slots[0].wizardIndex].side;
 	foreach(ref w;gi.wizards){

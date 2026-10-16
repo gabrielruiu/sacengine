@@ -519,12 +519,35 @@ int run(B)(TrigAction action,ref ScriptSlot slot,int slotIndex,ObjectState!B sta
 	}
 	if(auto a=cast(TrigChangeSideAction)action){
 		auto id=objectId(a.ntt,side,state);
-		if(isCreature(id,state)&&a.side<32) state.movingObjectById!((ref obj,newSide,state){ // as rescuedBy (state.d)
-			obj.clearOrderQueue(state); obj.unselect(state); obj.removeFromGroups(state);
-			obj.side=newSide;
-			state.botSideChanged(obj);
-		},(){})(id,cast(int)a.side,state);
+		if(isCreature(id,state)&&a.side<32) changeSide(id,a.side,state);
 		else if(id&&a.side<32) state.buildingById!((ref bldg,newSide){ bldg.side=newSide; },(){})(id,cast(int)a.side);
+		return 0;
+	}
+	if(auto a=cast(TrigChangeSideAllOfTypeAction)action){ // all of the current side's creatures of that type
+		if(a.side>=32) return 0;
+		int[] ids;
+		state.eachMoving!((ref obj,state,ids,ctype,side){
+			if(obj.isAlive&&obj.side==side&&matchesCreatureType(obj,ctype)) *ids~=obj.id;
+		})(state,&ids,a.nttType,side);
+		foreach(id;ids) changeSide(id,a.side,state);
+		return 0;
+	}
+	if(auto a=cast(TrigSetVariableToNumberOfNttsAction)action){ // the current side's living ntts of that type
+		int count=0;
+		Vector3f p; float r=0.0f;
+		bool atLocation=false;
+		char[4] ctype, stype;
+		if(auto q=cast(TrigCreatureTypeNtts)a.quantifiedNtts) ctype=q.ctype;
+		else if(auto q=cast(TrigCreatureTypeAtLocationNtts)a.quantifiedNtts){ ctype=q.ctype; atLocation=location(q.location,side,state,p,r); if(!atLocation) return 0; }
+		else if(auto q=cast(TrigStructureTypeNtts)a.quantifiedNtts) stype=q.stype;
+		else if(auto q=cast(TrigStructureTypeAtLocationNtts)a.quantifiedNtts){ stype=q.stype; atLocation=location(q.location,side,state,p,r); if(!atLocation) return 0; }
+		if(ctype!=typeof(ctype).init) state.eachMoving!((ref obj,state,count,ctype,side,atLocation,p,r){
+			if(obj.isAlive&&obj.side==side&&matchesCreatureType(obj,ctype)&&(!atLocation||within(obj.position,p,r))) *count+=1;
+		})(state,&count,ctype,side,atLocation,p,r);
+		else state.eachBuilding!((ref bldg,state,count,stype,side,atLocation,p,r){
+			if(bldg.side==side&&matchesStructureType(bldg,stype)&&(!atLocation||within(bldg.position(state),p,r))) *count+=1;
+		})(state,&count,stype,side,atLocation,p,r);
+		setVariable(a.variable,count);
 		return 0;
 	}
 	if(auto a=cast(TrigSetNttStateAction)action){
@@ -560,6 +583,14 @@ int run(B)(TrigAction action,ref ScriptSlot slot,int slotIndex,ObjectState!B sta
 	}
 	unsupported(typeName(action),trigger);
 	return 0;
+}
+
+void changeSide(B)(int id,uint newSide,ObjectState!B state){ // as rescuedBy (state.d)
+	state.movingObjectById!((ref obj,newSide,state){
+		obj.clearOrderQueue(state); obj.unselect(state); obj.removeFromGroups(state);
+		obj.side=newSide;
+		state.botSideChanged(obj);
+	},(){})(id,cast(int)newSide,state);
 }
 
 bool isCoopObject(B)(int side,ObjectState!B state){ return 0<=side&&side<32&&(state.trig.coop.coopSides&1u<<side); }
