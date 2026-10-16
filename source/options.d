@@ -17,6 +17,7 @@ enum God randomGod=cast(God)-1; // god option value: pick a random god
 
 struct Options{
 	bool menu=false; // coop: start into the original title menu
+	bool coopMission=false; // coop: copied into GameInit for games started from the co-op lobby
 	// graphics options
 	int width=1280, height=720;
 	bool detectResolution=false;
@@ -190,6 +191,7 @@ struct Settings{
 	bool pauseOnDrop=true;
 	bool refuseGreenSouls=false;
 	bool ready=false; // coop: lobby ready flag
+	int coopGod=0; // coop: the host's mission choice, a God value (0 = none)
 	// (remember to update Network!B.initSlots)
 	// TODO: automate
 }

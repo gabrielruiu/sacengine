@@ -30660,6 +30660,7 @@ final class Triggers(B){
 struct TriggerState(B){
 	int[32] numSouls;
 	int[32] numManaliths;
+	import coop.wizards: CoopState; import coop.script: ScriptState; CoopState coop; ScriptState script; // coop: synced co-op state
 }
 
 void beginTriggers(B)(ref TriggerState!B triggerState,ObjectState!B state){
@@ -31558,6 +31559,7 @@ struct GameInit(B){
 	bool alwaysOnMinimap=false;
 	bool betaPatchBots=false;
 	bool aiSides=true;
+	bool coopMission=false; uint coopSides=0; // coop: game started from the co-op lobby, and its co-op sides
 }
 
 struct SlotInfo{
@@ -31566,6 +31568,7 @@ struct SlotInfo{
 }
 
 void initGame(B)(ObjectState!B state,ref Array!SlotInfo slots,GameInit!B gameInit){ // returns id of controlled wizard
+	if(gameInit.coopMission){ import coop.wizards; coop.wizards.prepare(state,gameInit); }
 	state.settings.gameMode=gameInit.gameMode;
 	state.settings.gameModeParam=gameInit.gameModeParam;
 	if(gameInit.alwaysOnMinimap) state.enableAlwaysOnMinimap();
@@ -31667,6 +31670,7 @@ void initGame(B)(ObjectState!B state,ref Array!SlotInfo slots,GameInit!B gameIni
 	}
 	//state.sid.altarSides=getAltarSides(state);
 	state.sid.altarSides=altarSides;
+	if(gameInit.coopMission){ import coop.wizards, coop.script; coop.wizards.init(state,gameInit); coop.script.init(state,gameInit); }
 
 	state.trig.beginTriggers(state);
 	state.eachMoving!countNTT(state);
