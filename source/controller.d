@@ -241,6 +241,7 @@ final class Controller(B){
 			if(p.slot==-1) continue;
 			p.lost|=state.committed.isDefeated(state.slots[p.slot].controlledSide);
 			p.won|=state.committed.isVictorious(state.slots[p.slot].controlledSide);
+			{ import coop.wizards; if(coop.wizards.isCoopSide(state.slots[p.slot].controlledSide,state.committed)) continue; } // coop: no wizard before the handover
 			p.lost|=!state.committed.isValidTarget(state.slots[p.slot].wizard,TargetType.creature);
 		}
 	}
@@ -482,6 +483,7 @@ final class Controller(B){
 			numSteps+=1;
 		}
 		frameprof.reportCatchUp(state.currentFrame,numSteps,fpSw.peek);
+		{ import coop.wizards; coop.wizards.syncSlots!B(state); }
 		if(network){
 			playAudio=false;
 			updateCommitted(1+2*numSteps);
