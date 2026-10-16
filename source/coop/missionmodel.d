@@ -5,6 +5,8 @@
 //   ldc2 -unittest -main -run source/coop/missionmodel.d
 module coop.missionmodel;
 
+import std.algorithm: min;
+
 // The values of enum God (ntts.d), copied so this module stays free of engine imports.
 enum: int{ godNone=0, persephone=1, pyro=2, james=3, stratos=4, charnel=5 }
 enum defaultGod=james; // ja01 is the reference mission
@@ -145,9 +147,76 @@ struct CoopState{
 	bool spawned; // the handover has happened
 }
 
+enum maxTriggers=256, maxVariables=256, maxScriptSlots=16, maxObjectives=32;
+
+struct ScriptSlot{
+	enum coopSynced=true;
+	int trigger=-1; // -1 = free
+	int side; // the side the trigger fired for ("current side")
+	int action; // next action
+	int wakeFrame; // sleeps until frame>=wakeFrame
+}
+
+enum CameraMode{ free, focusObject, focusPosition }
+struct ScriptCamera{
+	enum coopSynced=true;
+	CameraMode mode;
+	float[3] origin=0.0f, focus=0.0f; // world positions when the action ran
+	int focusId; // object the focus follows (focusObject), 0 = none
+	bool fixedOrigin; // SetViewOrigin*: the origin stays put; otherwise it keeps its offset to the focus
+	int zoom=1; // TrigZoomLevel closest..farthest as 0..4
+	int speed=600; // SetViewSpeed, 0..600
+	int changedFrame;
+	float[3][2] from=0.0f; // origin and focus at changedFrame, interpolated from
+}
+
+struct ScriptFade{
+	enum coopSynced=true;
+	ubyte[3] color;
+	float fromAlpha=0.0f, toAlpha=0.0f;
+	int startFrame, duration;
+}
+
+enum MissionResult{ none, victory, defeat }
+
 struct ScriptState{
 	enum coopSynced=true;
 	int frame; // frames since mission start
 	int cinematic; // nesting of CinematicsStart/End, 0 = players have control
 	bool sawCinematicEnd, sawCinematicStart;
+	uint[maxTriggers/32] fired, running;
+	int[maxTriggers] lastFired; // re-arming triggers wait rearmFrames after firing
+	int[maxVariables] variables;
+	ScriptSlot[maxScriptSlots] slots;
+	uint[maxVariables/32] displayed;
+	ubyte[maxObjectives] objectives; // 0 hidden, 1 enabled, 2 complete
+	uint[32] attacked; // per attacking side: the sides it damaged this frame
+	MissionResult missionResult, pendingResult; // pendingResult: set by EndMission*, final when its slot ends
+	int pendingSlot=-1;
+	ScriptCamera camera;
+	ScriptFade fade;
+}
+
+// A trigger that may fire again does so at most this often (the original's evaluation rate is unknown).
+enum rearmFrames=30;
+
+bool bit(const(uint)[] bits,int i){ return !!(bits[i/32]&1u<<(i%32)); }
+void setBit(uint[] bits,int i,bool value){ if(value) bits[i/32]|=1u<<(i%32); else bits[i/32]&=~(1u<<(i%32)); }
+
+unittest{
+	uint[8] b;
+	setBit(b,0,true); setBit(b,37,true); setBit(b,255,true);
+	assert(bit(b,0)&&bit(b,37)&&bit(b,255)&&!bit(b,36));
+	setBit(b,37,false);
+	assert(!bit(b,37));
+}
+
+// Camera transition length for SetViewSpeed (0..600). First guess, see research R12: speed 600 takes 1 s.
+int cameraFrames(int speed){ return speed<=0?0:min(36000,600*60/speed); }
+
+unittest{
+	assert(cameraFrames(600)==60);
+	assert(cameraFrames(300)==120);
+	assert(cameraFrames(120)==300);
+	assert(cameraFrames(0)==0);
 }

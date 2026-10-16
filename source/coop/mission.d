@@ -65,7 +65,10 @@ bool tick(B)(){
 			return true;
 		case Phase.playing:
 			if(network.isHost) removeLeavers!B();
-			return true;
+			auto result=B.state.committed.trig.script.missionResult;
+			if(result!=MissionResult.none) end!B(result==MissionResult.victory?Screen.victory:Screen.defeat,null);
+			else if(!network.isHost&&!network.players[network.host].connection) end!B(Screen.message,"The host has left the game.");
+			return m.phase==Phase.playing;
 	}
 }
 
@@ -125,6 +128,31 @@ void dropLeavers(B)(){
 		stdout.writefln!"coop: a player left during loading, %s slots"(connected);
 		stdout.flush();
 	}
+}
+
+// The mission is over or the host left: tear the game down (controller, state, network) and show the original
+// end screen; its button or Escape returns to the title menu.
+void end(B)(Screen screen,string message){
+	alias m=M!B;
+	stdout.writefln!"coop: mission over: %s"(message.length?message:screen==Screen.victory?"victory":"defeat");
+	stdout.flush();
+	import state: Target;
+	with(B.scene){ // nothing may point into the old game: updateMouseTarget reads state for a cached target
+		mouse.target=mouse.cachedTarget=mouse.xmenuTarget=Target.init;
+		camera.target=0;
+		info.activeChatMessages=typeof(info.activeChatMessages).init; // renderChatMessages loops forever on them without a state
+		controller=null;
+		state=null;
+	}
+	leave!B();
+	m.lobby=null;
+	m.phase=Phase.lobby;
+	FE!B.status=message;
+	B.scene.enableMenu();
+	B.scene.mouse.visible=true; // forms only draw with a visible mouse; the game hid it
+	B.scene.fpview.active=false;
+	showScreen!B(screen);
+
 }
 
 // Host, in game: a co-op player who dropped gets one surrender for their side, which removes their wizard

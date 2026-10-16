@@ -16,7 +16,7 @@ import coop.lobbymodel;
 import coop.missionmodel: nextGod;
 import coop.mission: hostGod;
 
-enum Screen{ title, singlePlayer, tcpip, connecting, lobby, characterEditor }
+enum Screen{ title, singlePlayer, tcpip, connecting, lobby, characterEditor, victory, defeat, message }
 
 package template FE(B){
 	Screen screen;
@@ -35,6 +35,7 @@ package template FE(B){
 
 void start(B)(ref Options options){
 	patchSinglePlayerForm();
+	patchMessageForm();
 	FE!B.options=options;
 	import std.process: environment;
 	FE!B.controlPath=environment.get("COOP_CONTROL","");
@@ -70,10 +71,22 @@ void patchSinglePlayerForm(){
 	mouseoverTexts.addEntry("pooc","Play the campaign together with up to three friends");
 }
 
+// msgb ("the host has left") uses larger text, which sacengine's form toolkit does not draw yet: use large text.
+void patchMessageForm(){
+	import form: ElementFlags;
+	auto old=forms["bgsm"];
+	if(!old.elements.any!(e=>e.flags&ElementFlags.largerText)) return;
+	auto elements=old.elements.dup;
+	foreach(ref e;elements) if(e.flags&ElementFlags.largerText) e.flags=e.flags&~ElementFlags.largerText|ElementFlags.largeText;
+	FormHeader header=*old.header;
+	auto data=(cast(ubyte*)&header)[0..FormHeader.sizeof].dup~cast(ubyte[])elements;
+	forms.addEntry("bgsm",parseForm(data));
+}
+
 // the tables are immutable-valued but owned by nttData; adding an entry before first use is safe
 void addEntry(V)(ref immutable(V)[char[4]] table,char[4] key,V value){ (cast(V[char[4]])table)[key]=value; }
 
-immutable char[4][Screen.max+1] screenTags=["ltit","ylp1","ipct","ipct","ybol","cwen"];
+immutable char[4][Screen.max+1] screenTags=["ltit","ylp1","ipct","ipct","ybol","cwen","rniw","esol","bgsm"];
 
 ref SacFormState!B current(B)(){ return B.scene.forms[0]; }
 
@@ -85,6 +98,11 @@ void showScreen(B)(Screen screen){
 	stdout.flush();
 	final switch(screen) with(Screen){
 		case title, singlePlayer, lobby: break;
+		case victory, defeat, message: // the mission is over (coop.mission.end)
+			stdout.writefln!"coop: %s elements %-(%s %)"(tag[].retro,current!B.elements.data.map!(e=>e.id[].idup)); // raw ids, as COOP_CONTROL presses them
+			stdout.flush();
+			if(screen==message) foreach(i,e;current!B.elements.data) if(e.type==ElementType.text) setText!B(cast(int)i,FE!B.status);
+			break;
 		case tcpip:
 			sacElement!B(0).texts[0].font=FormFont.standard; // status line in the title bar; long messages need the small font
 			if(FE!B.status.length) setText!B(0,FE!B.status);
@@ -125,7 +143,8 @@ bool tick(B)(){
 }
 
 // Test automation for tools/run-local-coop.sh: each line appended to the file $COOP_CONTROL acts on the current
-// screen: "press ID[#N]" presses the N-th element ID like a click, "type ID TEXT" sets an entry box.
+// screen: "press ID[#N]" presses the N-th element ID like a click, "type ID TEXT" sets an entry box, "key escape"
+// activates the form's escape element. In game, coop.mission.control handles the lines.
 void pollControl(B)(){
 	alias fe=FE!B;
 	if(!fe.controlPath.length||fe.frame%10) return;
@@ -136,6 +155,7 @@ void pollControl(B)(){
 		auto words=lines[fe.controlDone].split;
 		if(words.length<2) continue;
 		if(!B.scene.forms.length){ import coop.mission; coop.mission.control!B(words); continue; } // in game
+		if(words[0]=="key"&&words[1]=="escape"){ fe.pressed=current!B.escapeIndex; continue; } // as the Escape key
 		auto id=words[1].split('#');
 		auto all=current!B.elements.data.indexes(id[0]);
 		auto n=id.length>1?id[1].to!size_t-1:0;
@@ -168,6 +188,9 @@ void handle(B)(char[4] id){
 			}
 			break;
 		case connecting: break;
+		case victory, defeat, message: // any button, or Escape: back to the title menu
+			if(current!B.elements[find!B(id[].idup)].type==ElementType.button) showScreen!B(title);
+			break;
 		case lobby:{
 			auto me=fe.network.me;
 			if(id=="lcnc"){ leave!B(); showScreen!B(singlePlayer); }
