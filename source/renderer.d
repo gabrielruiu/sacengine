@@ -5673,6 +5673,7 @@ struct Renderer(B){
 		int cursorSize;
 	}
 	void renderEntities2D(R2DOpt options,ObjectState!B state,NetworkState!B networkState,scope SacFormState!B[] forms,ref RenderInfo!B info,B.RenderContext rc){
+		{ import coop.cinematic; coop.cinematic.render2D(this,state,info,rc); } // coop: letterbox, fade, displayed variables
 		if(info.mouse.visible){
 			if(state){
 				renderTargetFrame(state,info,rc);

@@ -1855,7 +1855,8 @@ final class SacScene: Scene{
 			}//else state.step();
 			// state.commit();
 			updateCameraTarget();
-			if(camera.target){
+			bool scripted; { import coop.cinematic; scripted=coop.cinematic.camera(state,camera); if(scripted) positionFPCamera(); } // coop: cutscene camera
+			if(camera.target&&!scripted){
 				auto targetFacing=state.current.movingObjectById!((obj)=>obj.creatureState.facing, function float(){ assert(0); })(camera.target);
 				updateCameraPosition(dt,targetFacing!=camera.lastTargetFacing,mouse.dragging||mouse.rotating);
 				camera.lastTargetFacing=targetFacing;
